@@ -49,3 +49,8 @@ def said_wake(raw_text: str) -> bool:
 
 def is_command_phrase(text_norm: str, phrases: tuple[str, ...]) -> bool:
     return any(text_norm == norm(phrase) or text_norm.startswith(norm(phrase)) for phrase in phrases)
+
+
+def is_stop_request(text_norm: str) -> bool:
+    parts = text_norm.split()
+    return "stop" in parts or text_norm.startswith("hey stop") or text_norm.startswith("ardomis stop")

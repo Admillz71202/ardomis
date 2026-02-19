@@ -1,9 +1,6 @@
 import json
 import subprocess
 
-import numpy as np
-import sounddevice as sd
-
 from ardomis_app.config.settings import ELEVENLABS_API_KEY, ELEVENLABS_MODEL_ID, ELEVENLABS_VOICE_ID
 
 MIC_SR = 44100
@@ -16,7 +13,25 @@ SILENCE_SECONDS_TO_STOP = 0.45
 PRE_ROLL_SECONDS = 0.20
 
 
-def rms_int16(x: np.ndarray) -> float:
+
+
+def _sd():
+    try:
+        import sounddevice as sd
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("sounddevice is required for microphone/audio output. Install requirements.txt.") from exc
+    return sd
+
+def _np():
+    try:
+        import numpy as np
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("numpy is required for audio capture/effects. Install requirements.txt.") from exc
+    return np
+
+
+def rms_int16(x) -> float:
+    np = _np()
     if x.size == 0:
         return 0.0
     xf = x.astype(np.float32) / 32768.0
@@ -24,6 +39,7 @@ def rms_int16(x: np.ndarray) -> float:
 
 
 def pick_mic() -> int:
+    sd = _sd()
     devices = sd.query_devices()
     preferred = ("USB", "Mic", "microphone", "Audio", "PnP")
 
@@ -40,7 +56,9 @@ def pick_mic() -> int:
     raise RuntimeError("No input-capable audio device found.")
 
 
-def record_until_silence(max_wait_seconds: float | None = None) -> np.ndarray:
+def record_until_silence(max_wait_seconds: float | None = None):
+    np = _np()
+    sd = _sd()
     mic_idx = pick_mic()
     sd.default.device = (mic_idx, None)
 
@@ -52,8 +70,8 @@ def record_until_silence(max_wait_seconds: float | None = None) -> np.ndarray:
     silence_chunks_to_stop = max(1, int((SILENCE_SECONDS_TO_STOP * 1000) / chunk_ms))
     max_wait_chunks = None if max_wait_seconds is None else max(1, int((max_wait_seconds * 1000) / chunk_ms))
 
-    pre_roll: list[np.ndarray] = []
-    captured: list[np.ndarray] = []
+    pre_roll = []
+    captured = []
 
     print("Listening… (start talking)")
 
@@ -98,6 +116,30 @@ def record_until_silence(max_wait_seconds: float | None = None) -> np.ndarray:
     dur = len(audio) / MIC_SR
     print(f"Recorded {dur:.2f}s")
     return audio
+
+
+def play_sound_effect(effect: str = "beep") -> None:
+    np = _np()
+    sr = 44100
+    dur = 0.35
+    t = np.linspace(0, dur, int(sr * dur), endpoint=False)
+
+    if effect == "laser":
+        f0, f1 = 900.0, 180.0
+        tone = np.sin(2 * np.pi * (f0 + (f1 - f0) * t / dur) * t)
+    elif effect == "robot":
+        tone = np.sign(np.sin(2 * np.pi * 110 * t)) * np.sin(2 * np.pi * 220 * t)
+    elif effect == "glitch":
+        rng = np.random.default_rng()
+        tone = rng.normal(0, 0.25, size=t.shape[0])
+        gate = (np.sin(2 * np.pi * 18 * t) > 0).astype(np.float32)
+        tone = tone * gate
+    else:
+        tone = np.sin(2 * np.pi * 660 * t) * np.exp(-6 * t)
+
+    audio = np.clip(tone * 0.22, -1.0, 1.0).astype(np.float32)
+    sd = _sd()
+    sd.play(audio, sr, blocking=False)
 
 
 def stop_all_audio_now() -> None:

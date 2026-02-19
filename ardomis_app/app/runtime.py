@@ -1,7 +1,7 @@
 import time
 
 from ardomis_app.app.constants import DEDUPE_WINDOW_SEC, POST_TTS_COOLDOWN_SEC
-from ardomis_app.services.audio_io import record_until_silence, speak_elevenlabs
+from ardomis_app.services.audio_io import play_sound_effect, record_until_silence, speak_elevenlabs
 from ardomis_app.services.stt_openai import transcribe_int16
 
 
@@ -32,3 +32,8 @@ class AudioRuntime:
         self.last_user_norm = text_norm
         self.last_user_ts = now
         return False
+
+
+    def sound_effect_and_cooldown(self, effect: str = "beep") -> None:
+        play_sound_effect(effect)
+        self.ignore_audio_until = time.time() + POST_TTS_COOLDOWN_SEC

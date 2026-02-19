@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from ardomis_app.services.integration_service import open_maps_directions, open_spotify, open_youtube, weather_report
 from ardomis_app.services.knowledge_vault import KnowledgeVault
 from ardomis_app.services.scheduler_service import SchedulerService
 from ardomis_app.services.time_service import current_time_line
@@ -13,19 +14,29 @@ from ardomis_app.services.utility_service import calculate, system_snapshot
 class CommandResult:
     handled: bool
     response: str = ""
+    next_mode: str | None = None
 
 
 class CommandCenter:
-    def __init__(self, vault: KnowledgeVault, scheduler: SchedulerService, timezone_name: str):
+    def __init__(
+        self,
+        vault: KnowledgeVault,
+        scheduler: SchedulerService,
+        timezone_name: str,
+        spotify_access_token: str = "",
+        youtube_api_key: str = "",
+    ):
         self.vault = vault
         self.scheduler = scheduler
         self.timezone_name = timezone_name
+        self.spotify_access_token = spotify_access_token
+        self.youtube_api_key = youtube_api_key
 
     def handle(self, text_norm: str, raw_text: str) -> CommandResult:
         if text_norm in {"help", "commands", "what can you do", "capabilities", "list me your commands", "what are your commands", "show commands"}:
             return CommandResult(
                 True,
-                "Quick commands: time | calc <expr> | remember <note> | show notes | todo <task> | show todos | set timer <n> seconds/minutes for <note> | remind me in <n> minutes to <note> | set alarm HH:MM for <note> | remind me at YYYY-MM-DD HH:MM to <note> | show schedule | system snapshot.",
+                "Quick commands: time | calc <expr> | remember <note> | show notes | todo <task> | show todos | set timer <n> seconds/minutes for <note> | remind me in <n> minutes to <note> | set alarm HH:MM for <note> | remind me at YYYY-MM-DD HH:MM to <note> | show schedule | play music <song> | watch <video> | weather in <city> | directions to <place> | say 'actually shut up' to reduce interruptions | say 'im being serious' for serious mode | system snapshot.",
             )
 
         if ("what time" in text_norm) or (text_norm in {"time", "current time", "what time is it"}):
@@ -41,6 +52,33 @@ class CommandCenter:
         if text_norm in {"system", "system status", "system snapshot"}:
             return CommandResult(True, system_snapshot())
 
+        spotify_match = re.match(r"^(?:play|spotify|play music)(?:\s+(.+))?$", raw_text.strip(), flags=re.IGNORECASE)
+        if spotify_match:
+            query = (spotify_match.group(1) or "").strip()
+            result = open_spotify(query=query, access_token=self.spotify_access_token)
+            return CommandResult(True, result.message, next_mode="presence")
+
+        youtube_match = re.match(r"^(?:watch|youtube|play video)(?:\s+(.+))?$", raw_text.strip(), flags=re.IGNORECASE)
+        if youtube_match:
+            query = (youtube_match.group(1) or "").strip()
+            result = open_youtube(query=query, api_key=self.youtube_api_key)
+            return CommandResult(True, result.message, next_mode="presence")
+
+        weather_match = re.match(r"^(?:weather)(?:\s+(?:in|for))?\s*(.*)$", raw_text.strip(), flags=re.IGNORECASE)
+        if weather_match:
+            location = (weather_match.group(1) or "").strip()
+            result = weather_report(location)
+            return CommandResult(True, result.message)
+
+        directions_match = re.match(
+            r"^(?:directions|navigate|maps?|route)(?:\s+(?:to|for))?\s+(.+)$",
+            raw_text.strip(),
+            flags=re.IGNORECASE,
+        )
+        if directions_match:
+            destination = directions_match.group(1).strip()
+            result = open_maps_directions(destination)
+            return CommandResult(True, result.message, next_mode="presence" if result.ok else None)
 
         timer_match = re.match(r"^set timer (\d+) (second|seconds|minute|minutes)(?: for (.+))?$", text_norm)
         if timer_match:

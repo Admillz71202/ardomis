@@ -1,13 +1,21 @@
-from openai import OpenAI
 from ardomis_app.config.settings import (
-    DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL,
-    DEEPSEEK_MODEL_FAST, DEEPSEEK_MODEL_DEEP,
-    DEEPSEEK_MAX_TOKENS_FAST, DEEPSEEK_MAX_TOKENS_DEEP
+    DEEPSEEK_API_KEY,
+    DEEPSEEK_BASE_URL,
+    DEEPSEEK_MODEL_FAST,
+    DEEPSEEK_MODEL_DEEP,
+    DEEPSEEK_MAX_TOKENS_FAST,
+    DEEPSEEK_MAX_TOKENS_DEEP,
 )
+
 
 def deepseek_reply(system_prompt: str, history_messages: list, user_text: str, deep: bool = False) -> str:
     if not DEEPSEEK_API_KEY:
         raise RuntimeError("DEEPSEEK_API_KEY not set.")
+
+    try:
+        from openai import OpenAI
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("openai package is required for DeepSeek chat calls. Install requirements.txt.") from exc
 
     client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)
 

@@ -15,6 +15,8 @@ class EmotionState:
     trust: int = 66
     playfulness: int = 60
     irritation: int = 14
+    annoyance: int = 35
+    seriousness: int = 45
     last_ts: float = 0.0
 
 
@@ -72,6 +74,8 @@ def drift(state: EmotionState) -> None:
     state.trust = _approach(state.trust, 66, 0.6 * per_min)
     state.playfulness = _approach(state.playfulness, 60, 1.1 * per_min)
     state.irritation = _approach(state.irritation, 14, 1.6 * per_min)
+    state.annoyance = _approach(state.annoyance, 35, 1.2 * per_min)
+    state.seriousness = _approach(state.seriousness, 45, 0.9 * per_min)
 
     state.last_ts = now
 
@@ -83,6 +87,7 @@ def on_interaction(state: EmotionState, intensity: int = 1) -> None:
     state.affection = clamp(state.affection + 1 * intensity)
     state.playfulness = clamp(state.playfulness + 1 * intensity)
     state.patience = clamp(state.patience - 1)
+    state.annoyance = clamp(state.annoyance + 1 * intensity)
 
 
 def mood_line(state: EmotionState) -> str:
@@ -100,5 +105,5 @@ def emotion_meter(state: EmotionState) -> str:
         "emotion-meter: "
         f"mood={state.mood}, energy={state.energy}, sass={state.sass}, jealousy={state.jealousy}, "
         f"patience={state.patience}, affection={state.affection}, focus={state.focus}, trust={state.trust}, "
-        f"playfulness={state.playfulness}, irritation={state.irritation}"
+        f"playfulness={state.playfulness}, irritation={state.irritation}, annoyance={state.annoyance}, seriousness={state.seriousness}"
     )

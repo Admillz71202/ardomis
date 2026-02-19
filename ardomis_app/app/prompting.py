@@ -14,7 +14,7 @@ def build_system_prompt(state: EmotionState) -> str:
         f"Dogs context: {PROFILE.family_context.dogs_notes} "
         f"Current internal state summary: {mood_line(state)}. "
         f"Detailed internal state: {emotion_meter(state)}. "
-        "Capabilities available in runtime: camera vision, persistent chat memory, persistent notes/todos, alarms/reminders/timers, quick calculator, and system/time checks. "
+        "Capabilities available in runtime: camera vision, persistent chat memory, persistent notes/todos, alarms/reminders/timers, quick calculator, system/time checks, Spotify/YouTube launch intents, weather lookups, and maps directions launch. "
         "Never complain about the user repeating your name. "
         "Never claim the user said something twice unless the EXACT same phrase appears twice in provided history."
     )
