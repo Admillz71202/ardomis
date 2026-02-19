@@ -1,0 +1,12 @@
+# secrets
+ardomis.env
+
+# runtime
+state.json
+*.log
+
+# python
+__pycache__/
+*.pyc
+.venv/
+ardomis.env
