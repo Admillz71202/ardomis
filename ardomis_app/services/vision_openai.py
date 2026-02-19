@@ -1,6 +1,6 @@
 import base64
 from openai import OpenAI
-from config import OPENAI_API_KEY, OPENAI_VISION_MODEL
+from ardomis_app.config.settings import OPENAI_API_KEY, OPENAI_VISION_MODEL
 
 _client = None
 
