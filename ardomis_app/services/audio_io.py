@@ -1,8 +1,10 @@
-import subprocess, time, json
+import json
+import subprocess
+
 import numpy as np
 import sounddevice as sd
 
-from config import ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID, ELEVENLABS_MODEL_ID
+from ardomis_app.config.settings import ELEVENLABS_API_KEY, ELEVENLABS_MODEL_ID, ELEVENLABS_VOICE_ID
 
 MIC_SR = 44100
 CHANNELS = 1
@@ -13,11 +15,13 @@ STOP_THRESHOLD = 0.009
 SILENCE_SECONDS_TO_STOP = 0.45
 PRE_ROLL_SECONDS = 0.20
 
+
 def rms_int16(x: np.ndarray) -> float:
     if x.size == 0:
         return 0.0
     xf = x.astype(np.float32) / 32768.0
     return float(np.sqrt(np.mean(xf * xf) + 1e-12))
+
 
 def pick_mic() -> int:
     devices = sd.query_devices()
@@ -35,7 +39,8 @@ def pick_mic() -> int:
 
     raise RuntimeError("No input-capable audio device found.")
 
-def record_until_silence() -> np.ndarray:
+
+def record_until_silence(max_wait_seconds: float | None = None) -> np.ndarray:
     mic_idx = pick_mic()
     sd.default.device = (mic_idx, None)
 
@@ -45,9 +50,10 @@ def record_until_silence() -> np.ndarray:
 
     pre_roll_chunks = max(1, int((PRE_ROLL_SECONDS * 1000) / chunk_ms))
     silence_chunks_to_stop = max(1, int((SILENCE_SECONDS_TO_STOP * 1000) / chunk_ms))
+    max_wait_chunks = None if max_wait_seconds is None else max(1, int((max_wait_seconds * 1000) / chunk_ms))
 
-    pre_roll = []
-    captured = []
+    pre_roll: list[np.ndarray] = []
+    captured: list[np.ndarray] = []
 
     print("Listening… (start talking)")
 
@@ -57,8 +63,7 @@ def record_until_silence() -> np.ndarray:
         dtype="int16",
         blocksize=frames_per_chunk,
     ) as stream:
-
-        # wait for speech start
+        wait_chunks = 0
         while True:
             data, _ = stream.read(frames_per_chunk)
             chunk = np.squeeze(data)
@@ -71,7 +76,10 @@ def record_until_silence() -> np.ndarray:
                 captured.append(chunk.copy())
                 break
 
-        # record until silence/cap
+            wait_chunks += 1
+            if max_wait_chunks is not None and wait_chunks >= max_wait_chunks:
+                return np.array([], dtype=np.int16)
+
         silent_run = 0
         for _ in range(max_chunks_after_start):
             data, _ = stream.read(frames_per_chunk)
@@ -91,8 +99,10 @@ def record_until_silence() -> np.ndarray:
     print(f"Recorded {dur:.2f}s")
     return audio
 
+
 def stop_all_audio_now() -> None:
     subprocess.run(["bash", "-lc", "pkill -9 aplay >/dev/null 2>&1 || true"], check=False)
+
 
 def speak_elevenlabs(text: str) -> None:
     t = (text or "").strip()
@@ -110,7 +120,6 @@ def speak_elevenlabs(text: str) -> None:
 
     stop_all_audio_now()
 
-    # request mp3
     subprocess.run(
         [
             "curl", "-sS", "-X", "POST",
@@ -125,7 +134,6 @@ def speak_elevenlabs(text: str) -> None:
         timeout=35,
     )
 
-    # mp3 -> wav (use 48000 for pi friendliness)
     subprocess.run(
         ["ffmpeg", "-y", "-i", out_mp3, "-ac", "1", "-ar", "48000", out_wav],
         stdout=subprocess.DEVNULL,
@@ -134,7 +142,6 @@ def speak_elevenlabs(text: str) -> None:
         check=False,
     )
 
-    # small pre-silence (helps reduce first-word cut)
     subprocess.run(
         ["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono", "-t", "0.10", pre_wav],
         stdout=subprocess.DEVNULL,
@@ -143,6 +150,5 @@ def speak_elevenlabs(text: str) -> None:
         check=False,
     )
 
-    # play
     subprocess.run(["aplay", "-D", "default", pre_wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, check=False)
     subprocess.run(["aplay", "-D", "default", out_wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=40, check=False)

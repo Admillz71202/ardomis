@@ -1,5 +1,5 @@
 from openai import OpenAI
-from config import (
+from ardomis_app.config.settings import (
     DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL,
     DEEPSEEK_MODEL_FAST, DEEPSEEK_MODEL_DEEP,
     DEEPSEEK_MAX_TOKENS_FAST, DEEPSEEK_MAX_TOKENS_DEEP

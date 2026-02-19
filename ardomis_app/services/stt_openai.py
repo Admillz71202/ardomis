@@ -1,7 +1,7 @@
 import os, tempfile, wave
 import numpy as np
 from openai import OpenAI
-from config import OPENAI_API_KEY, OPENAI_STT_MODEL
+from ardomis_app.config.settings import OPENAI_API_KEY, OPENAI_STT_MODEL
 
 _client = None
 

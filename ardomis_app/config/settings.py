@@ -16,6 +16,7 @@ def load_env_file(path: str) -> None:
         pass
 
 BASE_DIR = os.path.expanduser("~/ardomis")
+os.makedirs(BASE_DIR, exist_ok=True)
 ENV_PATH = os.path.join(BASE_DIR, "ardomis.env")
 STATE_PATH = os.path.join(BASE_DIR, "state.json")
 
@@ -38,3 +39,14 @@ OPENAI_VISION_MODEL = os.getenv("OPENAI_VISION_MODEL", "gpt-4.1-mini")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "")
 ELEVENLABS_MODEL_ID = os.getenv("ELEVENLABS_MODEL_ID", "eleven_turbo_v2_5")
+
+
+# Memory + Time
+MEMORY_DB_PATH = os.getenv("MEMORY_DB_PATH", os.path.join(BASE_DIR, "memory.db"))
+MEMORY_MAX_ROWS = int(os.getenv("MEMORY_MAX_ROWS", "800"))
+LOCAL_TIMEZONE = os.getenv("LOCAL_TIMEZONE", "America/New_York")
+
+PRESENCE_RESPONSE_WINDOW_SEC = int(os.getenv("PRESENCE_RESPONSE_WINDOW_SEC", "20"))
+PRESENCE_CHIME_MIN_SEC = int(os.getenv("PRESENCE_CHIME_MIN_SEC", "300"))
+PRESENCE_CHIME_MAX_SEC = int(os.getenv("PRESENCE_CHIME_MAX_SEC", "900"))
+PRESENCE_LISTEN_POLL_SEC = float(os.getenv("PRESENCE_LISTEN_POLL_SEC", "2.0"))
