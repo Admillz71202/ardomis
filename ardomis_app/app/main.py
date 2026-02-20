@@ -145,15 +145,17 @@ def main() -> None:
                 next_chime_at = time.time() + _next_chime_delay(state)
 
             transcript = runtime.listen_text(
-                prompt_hint="Transcribe English. In background mode, capture wake words clearly.",
+                prompt_hint="",
                 max_wait_seconds=PRESENCE_LISTEN_POLL_SEC,
             )
             if not transcript:
                 continue
+            text_norm = norm(transcript)
+            if text_norm.startswith("transcribe english"):
+                continue
             if looks_like_garbage(transcript):
                 continue
 
-            text_norm = norm(transcript)
             if is_tiny_filler(text_norm) and not said_wake(transcript) and not is_command_phrase(text_norm, SLEEP_PHRASES):
                 continue
             if runtime.should_dedupe(text_norm):
@@ -210,6 +212,8 @@ def main() -> None:
             continue
 
         text_norm = norm(user_text)
+        if text_norm.startswith("transcribe english"):
+            continue
         if is_tiny_filler(text_norm) and not is_command_phrase(text_norm, STOP_PHRASES) and not is_command_phrase(text_norm, SLEEP_PHRASES):
             continue
         if runtime.should_dedupe(text_norm):
@@ -290,17 +294,6 @@ def main() -> None:
         else:
             memory.add_user(user_text)
             reply = _generate_chat_reply(state, memory, user_text, text_norm)
-
-        recent_assistant = [m.get("content", "") for m in memory.messages() if m.get("role") == "assistant"]
-        if recent_assistant and reply.lower() == recent_assistant[-1].lower():
-            reply = "My bad, I got stuck repeating myself. I'm listening now—what do you need?"
-
-        unsolicited_media = ("spotify" in reply.lower() or "youtube" in reply.lower()) and any(
-            token in reply.lower() for token in ("open", "search", "play")
-        )
-        requested_media = any(token in text_norm for token in ("spotify", "youtube", "play ", "watch "))
-        if unsolicited_media and not requested_media:
-            reply = "You're right—ignore that. I jumped tracks. What do you want help with?"
 
         memory.add_assistant(reply)
         print(f"Ardomis: {reply}")
