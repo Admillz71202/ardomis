@@ -54,3 +54,21 @@ PRESENCE_RESPONSE_WINDOW_SEC = int(os.getenv("PRESENCE_RESPONSE_WINDOW_SEC", "20
 PRESENCE_CHIME_MIN_SEC = int(os.getenv("PRESENCE_CHIME_MIN_SEC", "300"))
 PRESENCE_CHIME_MAX_SEC = int(os.getenv("PRESENCE_CHIME_MAX_SEC", "900"))
 PRESENCE_LISTEN_POLL_SEC = float(os.getenv("PRESENCE_LISTEN_POLL_SEC", "2.0"))
+
+# Prompt style customization (always enabled rich psych profile)
+PROMPT_GENRE_TAGS = os.getenv(
+    "PROMPT_GENRE_TAGS",
+    "psychological-drama, character-study, intimate-contemporary",
+)
+PROMPT_TONE_PROFILE = os.getenv(
+    "PROMPT_TONE_PROFILE",
+    "grounded, tactile, emotionally precise, controlled intensity",
+)
+PROMPT_NARRATIVE_DO_NOT = os.getenv(
+    "PROMPT_NARRATIVE_DO_NOT",
+    "over-explain subtext, paraphrase user lines, or add empty atmosphere",
+)
+PROMPT_NARRATIVE_DO_INSTEAD = os.getenv(
+    "PROMPT_NARRATIVE_DO_INSTEAD",
+    "advance with concrete action, sensory detail, and unresolved hooks",
+)
