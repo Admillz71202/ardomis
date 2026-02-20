@@ -16,8 +16,7 @@ class IntegrationResult:
 
 def _open_url(url: str) -> bool:
     try:
-        webbrowser.open(url, new=2)
-        return True
+        return bool(webbrowser.open(url, new=2))
     except Exception:
         return False
 
