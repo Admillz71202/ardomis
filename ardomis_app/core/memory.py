@@ -48,7 +48,20 @@ class ChatMemory:
             ).fetchall()
 
         for role, content in reversed(rows):
-            self.buf.append({"role": role, "content": content})
+            self._append_if_new(role, content, persist=False)
+
+    def _append_if_new(self, role: str, content: str, persist: bool) -> None:
+        value = (content or "").strip()
+        if not value:
+            return
+
+        prev = self.buf[-1] if self.buf else None
+        if prev and prev.get("role") == role and (prev.get("content") or "").strip() == value:
+            return
+
+        self.buf.append({"role": role, "content": value})
+        if persist:
+            self._persist(role, value)
 
     def _persist(self, role: str, content: str) -> None:
         now = time.time()
@@ -69,16 +82,10 @@ class ChatMemory:
             conn.commit()
 
     def add_user(self, text: str) -> None:
-        value = (text or "").strip()
-        if value:
-            self.buf.append({"role": "user", "content": value})
-            self._persist("user", value)
+        self._append_if_new("user", text, persist=True)
 
     def add_assistant(self, text: str) -> None:
-        value = (text or "").strip()
-        if value:
-            self.buf.append({"role": "assistant", "content": value})
-            self._persist("assistant", value)
+        self._append_if_new("assistant", text, persist=True)
 
     def messages(self) -> list[dict[str, str]]:
         return list(self.buf)

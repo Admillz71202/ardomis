@@ -24,7 +24,13 @@ def deepseek_reply(system_prompt: str, history_messages: list, user_text: str, d
 
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(history_messages)
-    messages.append({"role": "user", "content": (user_text or "").strip()})
+
+    user_value = (user_text or "").strip()
+    last = history_messages[-1] if history_messages else None
+    last_role = (last or {}).get("role") if isinstance(last, dict) else None
+    last_content = ((last or {}).get("content") or "").strip() if isinstance(last, dict) else ""
+    if user_value and not (last_role == "user" and last_content == user_value):
+        messages.append({"role": "user", "content": user_value})
 
     r = client.chat.completions.create(
         model=model,
