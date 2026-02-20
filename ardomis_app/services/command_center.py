@@ -10,6 +10,50 @@ from ardomis_app.services.time_service import current_time_line
 from ardomis_app.services.utility_service import calculate, system_snapshot
 
 
+_NUM_WORDS = {
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+    "twenty": 20,
+    "thirty": 30,
+    "forty": 40,
+    "fifty": 50,
+    "sixty": 60,
+}
+
+
+def _parse_number_token(token: str) -> int | None:
+    value = (token or "").strip().lower()
+    if not value:
+        return None
+    if value.isdigit():
+        return int(value)
+    if value in _NUM_WORDS:
+        return _NUM_WORDS[value]
+    if "-" in value:
+        parts = [p for p in value.split("-") if p]
+        if len(parts) == 2 and all(p in _NUM_WORDS for p in parts):
+            return _NUM_WORDS[parts[0]] + _NUM_WORDS[parts[1]]
+    return None
+
+
 @dataclass
 class CommandResult:
     handled: bool
@@ -32,6 +76,34 @@ class CommandCenter:
         self.spotify_access_token = spotify_access_token
         self.youtube_api_key = youtube_api_key
 
+    @staticmethod
+    def _extract_spotify_query(raw_text: str) -> str:
+        text = (raw_text or "").strip()
+        patterns = [
+            r"^open\s+spotify\s+and\s+play\s+(.+)$",
+            r"^play\s+(.+?)\s+on\s+spotify$",
+            r"^(?:play\s+music|play|spotify)\s+(.+)$",
+        ]
+        for pattern in patterns:
+            match = re.match(pattern, text, flags=re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        return ""
+
+    @staticmethod
+    def _extract_youtube_query(raw_text: str) -> str:
+        text = (raw_text or "").strip()
+        patterns = [
+            r"^open\s+youtube\s+and\s+play\s+(.+)$",
+            r"^play\s+(.+?)\s+on\s+youtube$",
+            r"^(?:watch|youtube|play\s+video)\s+(.+)$",
+        ]
+        for pattern in patterns:
+            match = re.match(pattern, text, flags=re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        return ""
+
     def handle(self, text_norm: str, raw_text: str) -> CommandResult:
         if text_norm in {"help", "commands", "what can you do", "capabilities", "list me your commands", "what are your commands", "show commands"}:
             return CommandResult(
@@ -52,17 +124,25 @@ class CommandCenter:
         if text_norm in {"system", "system status", "system snapshot"}:
             return CommandResult(True, system_snapshot())
 
-        spotify_match = re.match(r"^(?:play|spotify|play music)(?:\s+(.+))?$", raw_text.strip(), flags=re.IGNORECASE)
-        if spotify_match:
-            query = (spotify_match.group(1) or "").strip()
-            result = open_spotify(query=query, access_token=self.spotify_access_token)
-            return CommandResult(True, result.message, next_mode="presence")
-
-        youtube_match = re.match(r"^(?:watch|youtube|play video)(?:\s+(.+))?$", raw_text.strip(), flags=re.IGNORECASE)
+        youtube_match = re.match(
+            r"^(?:watch|youtube|play video)(?:\s+(.+))?$|^play\s+(.+?)\s+on\s+youtube$|^open\s+youtube\s+and\s+play\s+(.+)$",
+            raw_text.strip(),
+            flags=re.IGNORECASE,
+        )
         if youtube_match:
-            query = (youtube_match.group(1) or "").strip()
+            query = self._extract_youtube_query(raw_text)
             result = open_youtube(query=query, api_key=self.youtube_api_key)
-            return CommandResult(True, result.message, next_mode="presence")
+            return CommandResult(True, result.message, next_mode="presence" if result.ok else None)
+
+        spotify_match = re.match(
+            r"^(?:play|spotify|play music)(?:\s+(.+))?$|^play\s+(.+?)\s+on\s+spotify$|^open\s+spotify\s+and\s+play\s+(.+)$",
+            raw_text.strip(),
+            flags=re.IGNORECASE,
+        )
+        if spotify_match:
+            query = self._extract_spotify_query(raw_text)
+            result = open_spotify(query=query, access_token=self.spotify_access_token)
+            return CommandResult(True, result.message, next_mode="presence" if result.ok else None)
 
         weather_match = re.match(r"^(?:weather)(?:\s+(?:in|for))?\s*(.*)$", raw_text.strip(), flags=re.IGNORECASE)
         if weather_match:
@@ -86,7 +166,21 @@ class CommandCenter:
             unit = timer_match.group(2)
             note = (timer_match.group(3) or "timer done").strip()
             seconds = qty * 60 if "minute" in unit else qty
-            tid, due = self.scheduler.add_timer(seconds, note)
+            tid, _ = self.scheduler.add_timer(seconds, note)
+            return CommandResult(True, f"Timer #{tid} set for {qty} {unit}. I will remind you: {note}")
+
+        timer_natural = re.match(
+            r"^set (?:a )?timer(?: for)?\s+([a-z0-9-]+)\s+(second|seconds|minute|minutes)(?:\s+for\s+(.+))?$",
+            text_norm,
+        )
+        if timer_natural:
+            qty = _parse_number_token(timer_natural.group(1))
+            unit = timer_natural.group(2)
+            note = (timer_natural.group(3) or "timer done").strip()
+            if qty is None:
+                return CommandResult(True, "I couldn't parse that timer amount. Try a number like 1 minute.")
+            seconds = qty * 60 if "minute" in unit else qty
+            tid, _ = self.scheduler.add_timer(seconds, note)
             return CommandResult(True, f"Timer #{tid} set for {qty} {unit}. I will remind you: {note}")
 
         reminder_in = re.match(r"^remind me in (\d+) (minute|minutes) to (.+)$", text_norm)

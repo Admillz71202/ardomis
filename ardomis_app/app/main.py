@@ -84,6 +84,30 @@ def _presence_interrupt(runtime: AudioRuntime, state, memory: ChatMemory, recent
     runtime.speak_and_cooldown(line)
 
 
+def _is_repeated_reply(reply: str, memory: ChatMemory) -> bool:
+    normalized = (reply or "").strip().lower()
+    if not normalized:
+        return False
+    recent_assistant = [m.get("content", "").strip().lower() for m in memory.messages() if m.get("role") == "assistant"]
+    return bool(recent_assistant and normalized == recent_assistant[-1])
+
+
+def _generate_chat_reply(state, memory: ChatMemory, user_text: str, text_norm: str) -> str:
+    deep = ("deep mode" in text_norm) or ("big brain" in text_norm) or ("use reasoner" in text_norm)
+    reply = deepseek_reply(build_system_prompt(state), memory.messages(), user_text, deep=deep)
+    reply = humanize_reply(reply)
+    if not _is_repeated_reply(reply, memory):
+        return reply
+
+    retry_prompt = f"{user_text}\n\nDo not repeat earlier assistant wording. Answer the user directly in one short natural response."
+    retry = deepseek_reply(build_system_prompt(state), memory.messages(), retry_prompt, deep=deep)
+    retry = humanize_reply(retry)
+    if retry and not _is_repeated_reply(retry, memory):
+        return retry
+
+    return "I heard you. Give me one second and ask that again plainly."
+
+
 def main() -> None:
     runtime = AudioRuntime()
     memory = ChatMemory(max_messages=24, db_path=MEMORY_DB_PATH, max_persist_rows=MEMORY_MAX_ROWS)
@@ -121,15 +145,17 @@ def main() -> None:
                 next_chime_at = time.time() + _next_chime_delay(state)
 
             transcript = runtime.listen_text(
-                prompt_hint="Transcribe English. In background mode, capture wake words clearly.",
+                prompt_hint="",
                 max_wait_seconds=PRESENCE_LISTEN_POLL_SEC,
             )
             if not transcript:
                 continue
+            text_norm = norm(transcript)
+            if text_norm.startswith("transcribe english"):
+                continue
             if looks_like_garbage(transcript):
                 continue
 
-            text_norm = norm(transcript)
             if is_tiny_filler(text_norm) and not said_wake(transcript) and not is_command_phrase(text_norm, SLEEP_PHRASES):
                 continue
             if runtime.should_dedupe(text_norm):
@@ -186,6 +212,8 @@ def main() -> None:
             continue
 
         text_norm = norm(user_text)
+        if text_norm.startswith("transcribe english"):
+            continue
         if is_tiny_filler(text_norm) and not is_command_phrase(text_norm, STOP_PHRASES) and not is_command_phrase(text_norm, SLEEP_PHRASES):
             continue
         if runtime.should_dedupe(text_norm):
@@ -265,9 +293,7 @@ def main() -> None:
                 reply = f"Mm. I tried to look, but it crashed: {exc}"
         else:
             memory.add_user(user_text)
-            deep = ("deep mode" in text_norm) or ("big brain" in text_norm) or ("use reasoner" in text_norm)
-            reply = deepseek_reply(build_system_prompt(state), memory.messages(), user_text, deep=deep)
-            reply = humanize_reply(reply)
+            reply = _generate_chat_reply(state, memory, user_text, text_norm)
 
         memory.add_assistant(reply)
         print(f"Ardomis: {reply}")
