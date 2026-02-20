@@ -292,8 +292,8 @@ def main() -> None:
             except Exception as exc:
                 reply = f"Mm. I tried to look, but it crashed: {exc}"
         else:
-            memory.add_user(user_text)
             reply = _generate_chat_reply(state, memory, user_text, text_norm)
+            memory.add_user(user_text)
 
         memory.add_assistant(reply)
         print(f"Ardomis: {reply}")
