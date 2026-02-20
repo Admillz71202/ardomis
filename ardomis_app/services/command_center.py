@@ -32,6 +32,34 @@ class CommandCenter:
         self.spotify_access_token = spotify_access_token
         self.youtube_api_key = youtube_api_key
 
+    @staticmethod
+    def _extract_spotify_query(raw_text: str) -> str:
+        text = (raw_text or "").strip()
+        patterns = [
+            r"^open\s+spotify\s+and\s+play\s+(.+)$",
+            r"^play\s+(.+?)\s+on\s+spotify$",
+            r"^(?:play\s+music|play|spotify)\s+(.+)$",
+        ]
+        for pattern in patterns:
+            match = re.match(pattern, text, flags=re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        return ""
+
+    @staticmethod
+    def _extract_youtube_query(raw_text: str) -> str:
+        text = (raw_text or "").strip()
+        patterns = [
+            r"^open\s+youtube\s+and\s+play\s+(.+)$",
+            r"^play\s+(.+?)\s+on\s+youtube$",
+            r"^(?:watch|youtube|play\s+video)\s+(.+)$",
+        ]
+        for pattern in patterns:
+            match = re.match(pattern, text, flags=re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        return ""
+
     def handle(self, text_norm: str, raw_text: str) -> CommandResult:
         if text_norm in {"help", "commands", "what can you do", "capabilities", "list me your commands", "what are your commands", "show commands"}:
             return CommandResult(
@@ -52,17 +80,25 @@ class CommandCenter:
         if text_norm in {"system", "system status", "system snapshot"}:
             return CommandResult(True, system_snapshot())
 
-        spotify_match = re.match(r"^(?:play|spotify|play music)(?:\s+(.+))?$", raw_text.strip(), flags=re.IGNORECASE)
-        if spotify_match:
-            query = (spotify_match.group(1) or "").strip()
-            result = open_spotify(query=query, access_token=self.spotify_access_token)
-            return CommandResult(True, result.message, next_mode="presence")
-
-        youtube_match = re.match(r"^(?:watch|youtube|play video)(?:\s+(.+))?$", raw_text.strip(), flags=re.IGNORECASE)
+        youtube_match = re.match(
+            r"^(?:watch|youtube|play video)(?:\s+(.+))?$|^play\s+(.+?)\s+on\s+youtube$|^open\s+youtube\s+and\s+play\s+(.+)$",
+            raw_text.strip(),
+            flags=re.IGNORECASE,
+        )
         if youtube_match:
-            query = (youtube_match.group(1) or "").strip()
+            query = self._extract_youtube_query(raw_text)
             result = open_youtube(query=query, api_key=self.youtube_api_key)
-            return CommandResult(True, result.message, next_mode="presence")
+            return CommandResult(True, result.message, next_mode="presence" if result.ok else None)
+
+        spotify_match = re.match(
+            r"^(?:play|spotify|play music)(?:\s+(.+))?$|^play\s+(.+?)\s+on\s+spotify$|^open\s+spotify\s+and\s+play\s+(.+)$",
+            raw_text.strip(),
+            flags=re.IGNORECASE,
+        )
+        if spotify_match:
+            query = self._extract_spotify_query(raw_text)
+            result = open_spotify(query=query, access_token=self.spotify_access_token)
+            return CommandResult(True, result.message, next_mode="presence" if result.ok else None)
 
         weather_match = re.match(r"^(?:weather)(?:\s+(?:in|for))?\s*(.*)$", raw_text.strip(), flags=re.IGNORECASE)
         if weather_match:
