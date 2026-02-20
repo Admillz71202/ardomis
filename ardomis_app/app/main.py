@@ -269,6 +269,17 @@ def main() -> None:
             reply = deepseek_reply(build_system_prompt(state), memory.messages(), user_text, deep=deep)
             reply = humanize_reply(reply)
 
+        recent_assistant = [m.get("content", "") for m in memory.messages() if m.get("role") == "assistant"]
+        if recent_assistant and reply.lower() == recent_assistant[-1].lower():
+            reply = "My bad, I got stuck repeating myself. I'm listening now—what do you need?"
+
+        unsolicited_media = ("spotify" in reply.lower() or "youtube" in reply.lower()) and any(
+            token in reply.lower() for token in ("open", "search", "play")
+        )
+        requested_media = any(token in text_norm for token in ("spotify", "youtube", "play ", "watch "))
+        if unsolicited_media and not requested_media:
+            reply = "You're right—ignore that. I jumped tracks. What do you want help with?"
+
         memory.add_assistant(reply)
         print(f"Ardomis: {reply}")
         runtime.speak_and_cooldown(reply)
