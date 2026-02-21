@@ -1,7 +1,7 @@
 import random
 import time
 
-from ardomis_app.app.constants import FORMAL, NAME, SLEEP_PHRASES, STOP_PHRASES
+from ardomis_app.app.constants import CHAT_IDLE_TO_PRESENCE_SEC, FORMAL, NAME, SLEEP_PHRASES, STOP_PHRASES
 from ardomis_app.app.humanizer import humanize_reply
 from ardomis_app.app.prompting import build_system_prompt
 from ardomis_app.app.runtime import AudioRuntime
@@ -44,6 +44,27 @@ SERIOUS_PHRASES = (
 QUIET_DOWN_PHRASES = ("actually shut up",)
 
 
+
+
+
+def _generate_mode_line(state, memory: ChatMemory, intent: str) -> str:
+    prompt = (
+        f"Generate one short spoken line for mode shift: {intent}. "
+        "Keep it under 14 words, natural, and mood-aware from current emotional state. "
+        "No narration, no stage directions, no emojis, no hashtags. Return only the line."
+    )
+    try:
+        line = deepseek_reply(build_system_prompt(state), memory.messages(), prompt, deep=False).strip().strip(" '\"")
+        if line:
+            return line
+    except Exception:
+        pass
+
+    if intent == "chat_to_presence":
+        fallback = ("Alright, I'll fade into the background for a bit.", "I'm stepping back for now—call me when you need me.")
+    else:
+        fallback = ("I'm here.", "Yep, I'm listening.")
+    return random.choice(fallback)
 
 def _generate_presence_line(state, memory: ChatMemory, recent_presence: list[str]) -> str:
     prompt = (
@@ -197,17 +218,22 @@ def main() -> None:
             if said_wake(transcript):
                 mode = "chat"
                 response_window_until = 0.0
-                runtime.speak_and_cooldown("Yeah?")
+                runtime.speak_and_cooldown(_generate_mode_line(state, memory, "presence_to_chat"))
                 continue
 
             if time.time() <= response_window_until:
                 mode = "chat"
                 response_window_until = 0.0
-                runtime.speak_and_cooldown("I’m listening.")
+                runtime.speak_and_cooldown(_generate_mode_line(state, memory, "presence_to_chat"))
 
             continue
 
-        user_text = runtime.listen_text()
+        user_text = runtime.listen_text(max_wait_seconds=CHAT_IDLE_TO_PRESENCE_SEC)
+        if not user_text:
+            runtime.speak_and_cooldown(_generate_mode_line(state, memory, "chat_to_presence"))
+            mode = "presence"
+            next_chime_at = time.time() + _next_chime_delay(state)
+            continue
         if looks_like_garbage(user_text):
             continue
 
@@ -241,7 +267,7 @@ def main() -> None:
             continue
 
         if is_stop_request(text_norm) or is_command_phrase(text_norm, STOP_PHRASES):
-            runtime.speak_and_cooldown("Aight. I’m back in the background.")
+            runtime.speak_and_cooldown(_generate_mode_line(state, memory, "chat_to_presence"))
             mode = "presence"
             next_chime_at = time.time() + _next_chime_delay(state)
             continue

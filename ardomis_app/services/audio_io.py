@@ -9,8 +9,9 @@ CHANNELS = 1
 MAX_RECORD_SECONDS = 7.0
 START_THRESHOLD = 0.012
 STOP_THRESHOLD = 0.009
-SILENCE_SECONDS_TO_STOP = 0.45
+SILENCE_SECONDS_TO_STOP = 0.95
 PRE_ROLL_SECONDS = 0.20
+MIN_RECORD_SECONDS_AFTER_START = 1.1
 
 
 
@@ -65,6 +66,7 @@ def record_until_silence(max_wait_seconds: float | None = None):
     chunk_ms = 20
     frames_per_chunk = int(MIC_SR * (chunk_ms / 1000.0))
     max_chunks_after_start = int((MAX_RECORD_SECONDS * 1000) / chunk_ms)
+    min_chunks_after_start = max(1, int((MIN_RECORD_SECONDS_AFTER_START * 1000) / chunk_ms))
 
     pre_roll_chunks = max(1, int((PRE_ROLL_SECONDS * 1000) / chunk_ms))
     silence_chunks_to_stop = max(1, int((SILENCE_SECONDS_TO_STOP * 1000) / chunk_ms))
@@ -99,7 +101,7 @@ def record_until_silence(max_wait_seconds: float | None = None):
                 return np.array([], dtype=np.int16)
 
         silent_run = 0
-        for _ in range(max_chunks_after_start):
+        for idx in range(max_chunks_after_start):
             data, _ = stream.read(frames_per_chunk)
             chunk = np.squeeze(data)
             captured.append(chunk.copy())
@@ -109,7 +111,7 @@ def record_until_silence(max_wait_seconds: float | None = None):
             else:
                 silent_run = 0
 
-            if silent_run >= silence_chunks_to_stop:
+            if idx >= min_chunks_after_start and silent_run >= silence_chunks_to_stop:
                 break
 
     audio = np.concatenate(captured).astype(np.int16)
