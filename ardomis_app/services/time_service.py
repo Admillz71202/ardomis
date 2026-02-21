@@ -10,4 +10,4 @@ def current_time_line(timezone_name: str) -> str:
         timezone_name = "America/New_York"
 
     now = datetime.now(zone)
-    return f"It is {now.strftime('%I:%M %p')} on {now.strftime('%A, %B %d, %Y')} ({timezone_name})."
+    return f"{now.strftime('%I:%M %p').lstrip('0')}"
