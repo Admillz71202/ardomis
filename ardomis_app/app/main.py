@@ -2,7 +2,7 @@ import random
 import time
 
 from ardomis_app.app.constants import CHAT_IDLE_TO_PRESENCE_SEC, FORMAL, NAME, SLEEP_PHRASES, STOP_PHRASES
-from ardomis_app.app.humanizer import humanize_reply
+from ardomis_app.app.humanizer import add_tts_vocalization, humanize_reply
 from ardomis_app.app.prompting import build_system_prompt
 from ardomis_app.app.runtime import AudioRuntime
 from ardomis_app.app.text_utils import (
@@ -117,12 +117,14 @@ def _generate_chat_reply(state, memory: ChatMemory, user_text: str, text_norm: s
     deep = ("deep mode" in text_norm) or ("big brain" in text_norm) or ("use reasoner" in text_norm)
     reply = deepseek_reply(build_system_prompt(state), memory.messages(), user_text, deep=deep)
     reply = humanize_reply(reply)
+    reply = add_tts_vocalization(reply, state=state)
     if not _is_repeated_reply(reply, memory):
         return reply
 
     retry_prompt = f"{user_text}\n\nDo not repeat earlier assistant wording. Answer the user directly in one short natural response."
     retry = deepseek_reply(build_system_prompt(state), memory.messages(), retry_prompt, deep=deep)
     retry = humanize_reply(retry)
+    retry = add_tts_vocalization(retry, state=state)
     if retry and not _is_repeated_reply(retry, memory):
         return retry
 
