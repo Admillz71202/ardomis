@@ -6,10 +6,10 @@ from ardomis_app.config.settings import ELEVENLABS_API_KEY, ELEVENLABS_MODEL_ID,
 MIC_SR = 44100
 CHANNELS = 1
 
-MAX_RECORD_SECONDS = 7.0
+MAX_RECORD_SECONDS = 18.0
 START_THRESHOLD = 0.012
 STOP_THRESHOLD = 0.009
-SILENCE_SECONDS_TO_STOP = 0.95
+SILENCE_SECONDS_TO_STOP = 3.0
 PRE_ROLL_SECONDS = 0.20
 MIN_RECORD_SECONDS_AFTER_START = 1.1
 
@@ -148,6 +148,35 @@ def stop_all_audio_now() -> None:
     subprocess.run(["bash", "-lc", "pkill -9 aplay >/dev/null 2>&1 || true"], check=False)
 
 
+def set_output_volume(percent: int) -> tuple[bool, str]:
+    level = max(0, min(100, int(percent)))
+    commands = [
+        ["amixer", "sset", "Master", f"{level}%"],
+        ["amixer", "sset", "PCM", f"{level}%"],
+    ]
+    for cmd in commands:
+        result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        if result.returncode == 0:
+            return True, f"Volume set to {level}%."
+    return False, "I couldn't set volume with amixer. Check your Pi audio mixer control names."
+
+
+def get_output_volume() -> str:
+    probes = [["amixer", "sget", "Master"], ["amixer", "sget", "PCM"]]
+    for cmd in probes:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            continue
+        for line in reversed(result.stdout.splitlines()):
+            if "%" in line and "[" in line and "]" in line:
+                parts = [p for p in line.split("[") if "%" in p]
+                if parts:
+                    pct = parts[0].split("%", 1)[0].strip()
+                    if pct.isdigit():
+                        return f"Current volume is {pct}%."
+    return "I couldn't read volume from amixer."
+
+
 def speak_elevenlabs(text: str) -> None:
     t = (text or "").strip()
     if not t:
@@ -175,14 +204,12 @@ def speak_elevenlabs(text: str) -> None:
             "--output", out_mp3,
         ],
         check=False,
-        timeout=35,
     )
 
     subprocess.run(
         ["ffmpeg", "-y", "-i", out_mp3, "-ac", "1", "-ar", "48000", out_wav],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        timeout=25,
         check=False,
     )
 
@@ -190,9 +217,8 @@ def speak_elevenlabs(text: str) -> None:
         ["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono", "-t", "0.10", pre_wav],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        timeout=10,
         check=False,
     )
 
-    subprocess.run(["aplay", "-D", "default", pre_wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, check=False)
-    subprocess.run(["aplay", "-D", "default", out_wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=40, check=False)
+    subprocess.run(["aplay", "-D", "default", pre_wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    subprocess.run(["aplay", "-D", "default", out_wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
