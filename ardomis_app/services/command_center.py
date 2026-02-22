@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from ardomis_app.services.audio_io import get_output_volume, set_output_volume
 from ardomis_app.services.integration_service import open_maps_directions, open_spotify, open_youtube, weather_report
 from ardomis_app.services.knowledge_vault import KnowledgeVault
 from ardomis_app.services.scheduler_service import SchedulerService
@@ -108,8 +109,19 @@ class CommandCenter:
         if text_norm in {"help", "commands", "what can you do", "capabilities", "list me your commands", "what are your commands", "show commands"}:
             return CommandResult(
                 True,
-                "Quick commands: time | calc <expr> | remember <note> | show notes | todo <task> | show todos | set timer <n> seconds/minutes for <note> | remind me in <n> minutes to <note> | set alarm HH:MM for <note> | remind me at YYYY-MM-DD HH:MM to <note> | show schedule | play music <song> | watch <video> | weather in <city> | directions to <place> | say 'actually shut up' to reduce interruptions | say 'im being serious' for serious mode | system snapshot.",
+                "Quick commands: time | calc <expr> | volume <0-100> | what's the volume | remember <note> | show notes | todo <task> | show todos | set timer <n> seconds/minutes for <note> | remind me in <n> minutes to <note> | set alarm HH:MM for <note> | remind me at YYYY-MM-DD HH:MM to <note> | show schedule | play music <song> | watch <video> | weather in <city> | directions to <place> | say 'actually shut up' to reduce interruptions | say 'im being serious' for serious mode | system snapshot.",
             )
+
+        if text_norm in {"what's the volume", "whats the volume", "current volume", "volume status", "volume"}:
+            return CommandResult(True, get_output_volume())
+
+        volume_match = re.match(r"^(?:set\s+)?volume\s+(\d{1,3})$", text_norm)
+        if volume_match:
+            level = int(volume_match.group(1))
+            if level < 0 or level > 100:
+                return CommandResult(True, "Give me a volume between 0 and 100.")
+            ok, msg = set_output_volume(level)
+            return CommandResult(True, msg if ok else f"{msg} Requested level was {level}%.")
 
         if ("what time" in text_norm) or (text_norm in {"time", "current time", "what time is it"}):
             return CommandResult(True, current_time_line(self.timezone_name))
