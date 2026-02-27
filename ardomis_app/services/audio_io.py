@@ -9,7 +9,7 @@ CHANNELS = 1
 MAX_RECORD_SECONDS = 18.0
 START_THRESHOLD = 0.012
 STOP_THRESHOLD = 0.009
-SILENCE_SECONDS_TO_STOP = 3.0
+SILENCE_SECONDS_TO_STOP = 2.2
 PRE_ROLL_SECONDS = 0.20
 MIN_RECORD_SECONDS_AFTER_START = 1.1
 
@@ -177,6 +177,26 @@ def get_output_volume() -> str:
     return "I couldn't read volume from amixer."
 
 
+_PRE_WAV_READY = False
+_PRE_WAV_PATH = "/tmp/ardomis_pre.wav"
+
+
+def _ensure_pre_wav() -> None:
+    """Generate the 0.1s pre-roll silence WAV once and cache it."""
+    global _PRE_WAV_READY
+    if _PRE_WAV_READY:
+        return
+    import os
+    if not os.path.exists(_PRE_WAV_PATH):
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono", "-t", "0.10", _PRE_WAV_PATH],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    _PRE_WAV_READY = True
+
+
 def speak_elevenlabs(text: str) -> None:
     t = (text or "").strip()
     if not t:
@@ -187,11 +207,11 @@ def speak_elevenlabs(text: str) -> None:
 
     out_mp3 = "/tmp/ardomis_tts.mp3"
     out_wav = "/tmp/ardomis_tts.wav"
-    pre_wav = "/tmp/ardomis_pre.wav"
 
     payload = {"text": t, "model_id": ELEVENLABS_MODEL_ID}
 
     stop_all_audio_now()
+    _ensure_pre_wav()
 
     subprocess.run(
         [
@@ -213,12 +233,5 @@ def speak_elevenlabs(text: str) -> None:
         check=False,
     )
 
-    subprocess.run(
-        ["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono", "-t", "0.10", pre_wav],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
-
-    subprocess.run(["aplay", "-D", "default", pre_wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    subprocess.run(["aplay", "-D", "default", _PRE_WAV_PATH], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     subprocess.run(["aplay", "-D", "default", out_wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)

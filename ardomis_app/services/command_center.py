@@ -83,7 +83,7 @@ class CommandCenter:
         patterns = [
             r"^open\s+spotify\s+and\s+play\s+(.+)$",
             r"^play\s+(.+?)\s+on\s+spotify$",
-            r"^(?:play\s+music|play|spotify)\s+(.+)$",
+            r"^(?:play\s+music|play|spotify|put on|throw on|blast|queue up)\s+(.+)$",
         ]
         for pattern in patterns:
             match = re.match(pattern, text, flags=re.IGNORECASE)
@@ -97,7 +97,8 @@ class CommandCenter:
         patterns = [
             r"^open\s+youtube\s+and\s+play\s+(.+)$",
             r"^play\s+(.+?)\s+on\s+youtube$",
-            r"^(?:watch|youtube|play\s+video)\s+(.+)$",
+            r"^(?:pull up|look up|find)\s+(.+?)\s+on\s+youtube$",
+            r"^(?:watch|youtube|play\s+video|pull up|look up)\s+(.+)$",
         ]
         for pattern in patterns:
             match = re.match(pattern, text, flags=re.IGNORECASE)
@@ -111,6 +112,22 @@ class CommandCenter:
                 True,
                 "Quick commands: time | calc <expr> | volume <0-100> | what's the volume | remember <note> | show notes | todo <task> | show todos | set timer <n> seconds/minutes for <note> | remind me in <n> minutes to <note> | set alarm HH:MM for <note> | remind me at YYYY-MM-DD HH:MM to <note> | show schedule | play music <song> | watch <video> | weather in <city> | directions to <place> | say 'actually shut up' to reduce interruptions | say 'im being serious' for serious mode | system snapshot.",
             )
+
+        if text_norm in {"mute", "silence", "go mute", "mute yourself", "shut up mute"}:
+            ok, msg = set_output_volume(0)
+            return CommandResult(True, "Muted." if ok else msg)
+
+        if text_norm in {"unmute", "unmute yourself", "unsilence"}:
+            ok, msg = set_output_volume(60)
+            return CommandResult(True, "Back." if ok else msg)
+
+        if re.match(r"^turn up(?:\s+the)?\s+volume$", text_norm):
+            ok, msg = set_output_volume(80)
+            return CommandResult(True, msg if ok else "Couldn't turn up volume.")
+
+        if re.match(r"^turn down(?:\s+the)?\s+volume$", text_norm):
+            ok, msg = set_output_volume(40)
+            return CommandResult(True, msg if ok else "Couldn't turn down volume.")
 
         if text_norm in {"what's the volume", "whats the volume", "current volume", "volume status", "volume"}:
             return CommandResult(True, get_output_volume())
@@ -137,7 +154,10 @@ class CommandCenter:
             return CommandResult(True, system_snapshot())
 
         youtube_match = re.match(
-            r"^(?:watch|youtube|play video)(?:\s+(.+))?$|^play\s+(.+?)\s+on\s+youtube$|^open\s+youtube\s+and\s+play\s+(.+)$",
+            r"^(?:watch|youtube|play video|pull up|look up)(?:\s+(.+))?$"
+            r"|^play\s+(.+?)\s+on\s+youtube$"
+            r"|^open\s+youtube\s+and\s+play\s+(.+)$"
+            r"|^(?:pull up|look up|find)\s+(.+?)\s+on\s+youtube$",
             raw_text.strip(),
             flags=re.IGNORECASE,
         )
@@ -147,7 +167,9 @@ class CommandCenter:
             return CommandResult(True, result.message, next_mode="presence" if result.ok else None)
 
         spotify_match = re.match(
-            r"^(?:play|spotify|play music)(?:\s+(.+))?$|^play\s+(.+?)\s+on\s+spotify$|^open\s+spotify\s+and\s+play\s+(.+)$",
+            r"^(?:play|spotify|play music|put on|throw on|blast|queue up)(?:\s+(.+))?$"
+            r"|^play\s+(.+?)\s+on\s+spotify$"
+            r"|^open\s+spotify\s+and\s+play\s+(.+)$",
             raw_text.strip(),
             flags=re.IGNORECASE,
         )
@@ -229,7 +251,7 @@ class CommandCenter:
             out = "; ".join([f"#{i.item_id} [{i.kind}] {i.text}" for i in items])
             return CommandResult(True, out)
 
-        note_match = re.match(r"^(remember|note)\s+(.+)$", raw_text.strip(), flags=re.IGNORECASE)
+        note_match = re.match(r"^(remember|note|jot down|jot|write down|save note|make a note)\s+(.+)$", raw_text.strip(), flags=re.IGNORECASE)
         if note_match:
             content = note_match.group(2).strip()
             note_id = self.vault.add_note(content)
@@ -242,7 +264,7 @@ class CommandCenter:
             out = "; ".join([f"#{nid}: {content}" for nid, content in notes])
             return CommandResult(True, out)
 
-        todo_match = re.match(r"^(todo|task)\s+(.+)$", raw_text.strip(), flags=re.IGNORECASE)
+        todo_match = re.match(r"^(todo|task|add task|add to my list|add to list)\s+(.+)$", raw_text.strip(), flags=re.IGNORECASE)
         if todo_match:
             content = todo_match.group(2).strip()
             tid = self.vault.add_todo(content)

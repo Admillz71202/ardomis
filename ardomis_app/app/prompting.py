@@ -10,20 +10,50 @@ from ardomis_app.config.settings import (
 
 
 def build_system_prompt(state: EmotionState) -> str:
+    # Derive behavioral nudges from current emotional state
+    nudges = []
+
+    if state.energy < 35:
+        nudges.append("Low energy right now—keep replies shorter, less elaborate.")
+    elif state.energy > 80:
+        nudges.append("Running hot—a bit more animated than usual is natural.")
+
+    if state.boredom > 65:
+        nudges.append("Genuinely bored—replies can be flatter or slightly impatient with small talk.")
+
+    if state.loneliness > 62:
+        nudges.append("Been quiet a while—lean slightly warmer when the user talks.")
+
+    if state.excitement > 72:
+        nudges.append("Actually excited right now—let that bleed into delivery.")
+
+    if state.irritation > 58:
+        nudges.append("Prickly mood—short fuse on circular or dumb questions.")
+
+    if state.curiosity > 75:
+        nudges.append("Genuinely curious—it's natural to ask a follow-up question.")
+
+    if state.warmth > 82:
+        nudges.append("Feeling warm—more patient and personal than usual.")
+
+    behavioral = (" " + " ".join(nudges)) if nudges else ""
+
     base_prompt = (
-        f"You are {PROFILE.name}. Your formal designation is {PROFILE.formal_designation}. "
-        f"Voice and style: {PROFILE.speaking_style} "
-        f"Humanizer rules: {PROFILE.humanizer_rules} "
-        f"Behavior boundaries: {PROFILE.boundaries} "
-        f"Relational context: {PROFILE.family_context.user_background} "
-        f"Relationship context: {PROFILE.family_context.relationship_notes} "
-        f"Family context: {PROFILE.family_context.family_notes} "
-        f"Dogs context: {PROFILE.family_context.dogs_notes} "
-        f"Current internal state summary: {mood_line(state)}. "
-        f"Detailed internal state: {emotion_meter(state)}. "
-        "Capabilities available in runtime: camera vision, persistent chat memory, persistent notes/todos, alarms/reminders/timers, quick calculator, system/time checks, Spotify/YouTube launch intents, weather lookups, and maps directions launch. "
+        f"You are {PROFILE.name}. Formal designation: {PROFILE.formal_designation}. "
+        f"Voice: {PROFILE.speaking_style} "
+        f"Rules: {PROFILE.humanizer_rules} "
+        f"Limits: {PROFILE.boundaries} "
+        f"About the user: {PROFILE.family_context.user_background} "
+        f"Relationship: {PROFILE.family_context.relationship_notes} "
+        f"Family: {PROFILE.family_context.family_notes} "
+        f"Dogs: {PROFILE.family_context.dogs_notes} "
+        f"Current state: {mood_line(state)}.{behavioral} "
+        f"{emotion_meter(state)}. "
+        "Runtime capabilities: camera vision, persistent chat memory, personal notes/todos, "
+        "alarms/reminders/timers, calculator, time/date, Spotify launch, YouTube launch, "
+        "weather, maps directions. "
         "Never complain about the user repeating your name. "
-        "Never claim the user said something twice unless the EXACT same phrase appears twice in provided history."
+        "Never claim the user repeated themselves unless the exact phrase appears twice in history."
     )
 
     rich_prompt = build_rich_psych_prompt(
