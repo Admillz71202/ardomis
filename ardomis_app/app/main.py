@@ -1,3 +1,28 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# main.py — the brain of the loop
+#
+# HOW IT WORKS
+# ─────────────
+# Ardomis runs in two modes, switching back and forth:
+#
+#   PRESENCE — ambient/background. Polls the mic in short windows. Fires
+#              periodic "chimes" (quips, questions, sound effects) on a
+#              randomized timer. Listens for wake word to switch to chat.
+#
+#   CHAT     — active conversation. Full listen → LLM → TTS cycle.
+#              Times out back to presence after CHAT_IDLE_TO_PRESENCE_SEC
+#              seconds of silence.
+#
+# WHERE TO ADD THINGS
+# ───────────────────
+#   New voice commands       → command_center.py
+#   New presence categories  → _pick_presence_category() / _build_presence_prompt()
+#   Persona changes          → core/profile.py
+#   New emotions             → core/emotion.py
+#   Wake word variants       → app/constants.py (WAKE_VARIANTS)
+#   Audio / mic tuning       → services/audio_io.py (top constants)
+# ─────────────────────────────────────────────────────────────────────────────
+
 import random
 import time
 from datetime import datetime
@@ -80,14 +105,18 @@ def _get_time_label() -> str:
 
 
 def _pick_presence_category(state) -> str:
+    # ── Tune presence personality here ───────────────────────────────────────
+    # Raise a base number to make that type of interrupt fire more often overall.
+    # The state.X terms make the weight scale with the relevant emotion.
+    # Example: raise "tease" base from 8 → 20 to get much more banter.
     weights = {
-        "random_thought": 22 + state.playfulness // 6,
-        "check_in":       14 + state.loneliness // 5,
-        "question":       10 + state.curiosity // 7,
-        "tease":           8 + state.sass // 9,
-        "observation":    20,
-        "callback":       12 + state.warmth // 10,
-        "introspect":      6 + state.boredom // 9,
+        "random_thought": 22 + state.playfulness // 6,  # weird/philosophical thoughts
+        "check_in":       14 + state.loneliness  // 5,  # "you good?" style check-ins
+        "question":       10 + state.curiosity   // 7,  # genuine questions for the user
+        "tease":           8 + state.sass        // 9,  # light roasts and banter
+        "observation":    20,                            # ambient room/time observations
+        "callback":       12 + state.warmth      // 10, # callbacks to recent conversation
+        "introspect":      6 + state.boredom     // 9,  # self-aware / idle thoughts
     }
     total = sum(weights.values())
     r = random.uniform(0, total)
@@ -346,6 +375,14 @@ def _generate_chat_reply(state, memory: ChatMemory, user_text: str, text_norm: s
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    # ── Boot sequence ─────────────────────────────────────────────────────────
+    # AudioRuntime    — mic recording, TTS playback, post-TTS cooldown, dedup
+    # ChatMemory      — rolling 24-message context window, persisted to SQLite
+    # EmotionState    — loaded from state.json; drifts and mutates while running
+    # KnowledgeVault  — personal notes + todos (SQLite)
+    # SchedulerService— timers, alarms, reminders (SQLite); polled every tick
+    # CommandCenter   — fast-path intent dispatch; no LLM for simple commands
+    # ─────────────────────────────────────────────────────────────────────────
     runtime = AudioRuntime()
     memory = ChatMemory(max_messages=24, db_path=MEMORY_DB_PATH, max_persist_rows=MEMORY_MAX_ROWS)
     state = load_state(STATE_PATH)

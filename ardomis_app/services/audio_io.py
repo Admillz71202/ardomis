@@ -3,15 +3,26 @@ import subprocess
 
 from ardomis_app.config.settings import ELEVENLABS_API_KEY, ELEVENLABS_MODEL_ID, ELEVENLABS_VOICE_ID
 
-MIC_SR = 44100
-CHANNELS = 1
+# ─────────────────────────────────────────────────────────────────────────────
+# Microphone / VAD tuning
+# Adjust these if recording feels wrong — see notes next to each value.
+# ─────────────────────────────────────────────────────────────────────────────
+MIC_SR   = 44100  # Sample rate. Change to 48000 if your mic prefers it.
+CHANNELS = 1      # Mono — leave this alone.
 
-MAX_RECORD_SECONDS = 18.0
-START_THRESHOLD = 0.012
-STOP_THRESHOLD = 0.009
-SILENCE_SECONDS_TO_STOP = 2.2
-PRE_ROLL_SECONDS = 0.20
-MIN_RECORD_SECONDS_AFTER_START = 1.1
+MAX_RECORD_SECONDS        = 18.0  # Hard cap on one utterance. Raise for long sentences.
+START_THRESHOLD           = 0.012 # RMS level that triggers recording.
+                                  #   Raise (e.g. 0.020) if background noise false-triggers.
+                                  #   Lower (e.g. 0.008) if soft voices aren't being caught.
+STOP_THRESHOLD            = 0.009 # RMS level below which counts as silence.
+                                  #   Raise to cut off faster; lower to wait longer.
+SILENCE_SECONDS_TO_STOP   = 2.2   # Seconds of silence before capture ends.
+                                  #   Raise (e.g. 3.0) if it cuts off mid-sentence.
+                                  #   Lower (e.g. 1.5) for snappier responses.
+PRE_ROLL_SECONDS          = 0.20  # Audio captured before the voice trigger fires.
+                                  #   Raise if the first syllable always gets clipped.
+MIN_RECORD_SECONDS_AFTER_START = 1.1  # Minimum recording length after voice detected.
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 
