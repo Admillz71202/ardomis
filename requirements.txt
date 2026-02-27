@@ -21,3 +21,7 @@ tqdm==4.67.3
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 wheel==0.46.3
+
+# OLED face display (install on Pi: pip install luma.oled pillow)
+luma.oled
+pillow

@@ -400,6 +400,9 @@ def main() -> None:
     response_window_until = 0.0
     next_chime_at = time.time() + _next_chime_delay(state)
     recent_presence: list[str] = []
+    _chime_needs_eyeroll = False    # set after presence chime, cleared on response
+
+    runtime.face.update_emotion(state)
 
     print(f"{NAME} online. (formal: {FORMAL})")
 
@@ -411,16 +414,25 @@ def main() -> None:
 
         drift(state)
         save_state(STATE_PATH, state)
+        runtime.face.update_emotion(state)
 
         # ════════════════════════════════════════════════════════════════════
         # PRESENCE MODE
         # ════════════════════════════════════════════════════════════════════
         if mode == "presence":
             now = time.time()
+
+            # Eye-roll: chime fired but user never responded in the window
+            if _chime_needs_eyeroll and response_window_until > 0 and now > response_window_until:
+                runtime.face.play_eyeroll()
+                _chime_needs_eyeroll = False
+                response_window_until = 0.0
+
             if now >= next_chime_at:
                 _presence_interrupt(runtime, state, memory, recent_presence)
                 response_window_until = time.time() + PRESENCE_RESPONSE_WINDOW_SEC
                 next_chime_at = time.time() + _next_chime_delay(state)
+                _chime_needs_eyeroll = True
 
             transcript = runtime.listen_text(
                 prompt_hint="",
@@ -448,6 +460,7 @@ def main() -> None:
                 state.irritation = clamp(state.irritation - 20)
                 state.playfulness = clamp(state.playfulness - 15)
                 save_state(STATE_PATH, state)
+                _chime_needs_eyeroll = False
                 runtime.speak_and_cooldown("Copy. Dialing it back.")
                 continue
 
@@ -459,28 +472,37 @@ def main() -> None:
                 state.annoyance = clamp(state.annoyance - 15)
                 save_state(STATE_PATH, state)
                 mode = "chat"
+                runtime.face.set_mode("chat")
+                _chime_needs_eyeroll = False
                 runtime.speak_and_cooldown("Got it. Serious mode. I'm locked in.")
                 continue
 
             if is_stop_request(text_norm):
                 mode = "chat"
+                runtime.face.set_mode("chat")
+                _chime_needs_eyeroll = False
                 response_window_until = 0.0
                 runtime.speak_and_cooldown("Got you. Back to normal.")
                 continue
 
             if is_command_phrase(text_norm, SLEEP_PHRASES):
-                runtime.speak_and_cooldown("Alright. Sleeping.")
+                _chime_needs_eyeroll = False
                 response_window_until = 0.0
+                runtime.speak_and_cooldown("Alright. Sleeping.")
                 continue
 
             if said_wake(transcript):
                 mode = "chat"
+                runtime.face.set_mode("chat")
+                _chime_needs_eyeroll = False
                 response_window_until = 0.0
                 runtime.speak_and_cooldown(_generate_mode_line(state, memory, "presence_to_chat"))
                 continue
 
             if time.time() <= response_window_until:
                 mode = "chat"
+                runtime.face.set_mode("chat")
+                _chime_needs_eyeroll = False
                 response_window_until = 0.0
                 runtime.speak_and_cooldown(_generate_mode_line(state, memory, "presence_to_chat"))
 
@@ -493,6 +515,7 @@ def main() -> None:
         if not user_text:
             runtime.speak_and_cooldown(_generate_mode_line(state, memory, "chat_to_presence"))
             mode = "presence"
+            runtime.face.set_mode("presence")
             next_chime_at = time.time() + _next_chime_delay(state)
             continue
 
@@ -532,12 +555,14 @@ def main() -> None:
         if is_stop_request(text_norm) or is_command_phrase(text_norm, STOP_PHRASES):
             runtime.speak_and_cooldown(_generate_mode_line(state, memory, "chat_to_presence"))
             mode = "presence"
+            runtime.face.set_mode("presence")
             next_chime_at = time.time() + _next_chime_delay(state)
             continue
 
         if is_command_phrase(text_norm, SLEEP_PHRASES):
             runtime.speak_and_cooldown("Alright. Sleeping.")
             mode = "presence"
+            runtime.face.set_mode("presence")
             next_chime_at = time.time() + _next_chime_delay(state)
             continue
 
